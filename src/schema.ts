@@ -43,35 +43,28 @@ export const EpidSchema = z.object({
 // Main product schema
 export const ProductSchema = z.object({
   status: z.enum(['completed', 'error', 'loading']),
-  original_retail_price: z.number().optional(),
-  timestamp: z.number().optional(),
+  original_retail_price: z.union([z.number(), z.null()]).optional(),
+  timestamp: z.union([z.number(), z.null()]).optional(),
   all_variants: z.array(ProductVariantSchema).optional(),
   retailer: z.string().optional(),
-  feature_bullets: z.array(z.string()).optional(),
-  variant_specifics: z.array(VariantSpecificSchema).optional(),
-  main_image: z.string().optional(),
+  variant_specifics: z.union([z.array(VariantSpecificSchema), z.object({
+    dimension: z.string(),
+    value: z.string()
+  })]).optional(),
+  main_image: z.union([z.string(), z.null()]).optional(),
   images: z.array(z.string()).optional(),
-  package_dimensions: PackageDimensionsSchema.optional(),
+  package_dimensions: z.union([PackageDimensionsSchema, z.object({})]).optional(),
   epids: z.array(EpidSchema).optional(),
   product_id: z.string().optional(),
-  asin: z.string().optional(),
-  ship_price: z.number().optional(),
   categories: z.array(z.string()).optional(),
   review_count: z.number().optional(),
-  epids_map: z.record(z.string()).optional(),
   title: z.string().optional(),
   brand: z.string().optional(),
   product_description: z.union([z.string(), z.array(z.string())]).optional(),
   product_details: z.array(z.string()).optional(),
-  question_count: z.number().optional(),
-  stars: z.number().optional(),
-  fresh: z.boolean().optional(),
-  pantry: z.boolean().optional(),
-  handmade: z.boolean().optional(),
-  digital: z.boolean().optional(),
-  buyapi_hint: z.boolean().optional(),
-  price: z.number().optional(),
-  error: z.string().optional()
+  stars: z.union([z.number(), z.null()]).optional(),
+  price: z.union([z.number(), z.null()]).optional(),
+  error: z.union([z.string(), z.null()]).optional()
 });
 
 export type Product = z.infer<typeof ProductSchema>;

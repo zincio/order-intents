@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ecommerce Scraper</title>
+    <script src="https://unpkg.com/@alenaksu/json-viewer@2.1.0/dist/json-viewer.bundle.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header {
+            background: #fff;
+            border-bottom: 1px solid #e9ecef;
+            padding: 1rem 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            color: #212529;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .url-input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid #ced4da;
+            border-radius: 4px 0 0 4px;
+            font-size: 0.9rem;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+        }
+
+        .strategy-select {
+            padding: 0.75rem;
+            border: 1px solid #ced4da;
+            border-left: none;
+            background: #fff;
+            font-size: 0.9rem;
+            outline: none;
+            cursor: pointer;
+            min-width: 120px;
+        }
+
+        .strategy-select:last-of-type {
+            border-radius: 0 4px 4px 0;
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+        }
+
+        .scrape-btn {
+            padding: 0.75rem 1.5rem;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        .scrape-btn:hover {
+            background: #0056b3;
+        }
+
+        .scrape-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .tabs {
+            display: flex;
+            background: #fff;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .tab {
+            padding: 1rem 1.5rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #6c757d;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+        }
+
+        .tab:hover {
+            color: #007bff;
+        }
+
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow: hidden;
+            height: 100%
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .json-viewer {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .json-toolbar {
+            padding: 0.5rem 1rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 0.25rem 0.5rem;
+            border: 1px solid #ced4da;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        .json-controls {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .json-btn {
+            padding: 0.25rem 0.5rem;
+            background: #fff;
+            border: 1px solid #ced4da;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            transition: all 0.2s;
+        }
+
+        .json-btn:hover {
+            background: #e9ecef;
+            border-color: #adb5bd;
+        }
+
+        .json-btn:active {
+            background: #dee2e6;
+        }
+
+        .json-content {
+            flex: 1;
+            overflow: auto;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 0.65rem;
+            line-height: 1.2;
+            background: rgb(42, 47, 58) !important;
+        }
+
+        .json-content pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem;
+        }
+
+        .success {
+            color: #155724;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem;
+        }
+
+        .debug {
+            color: #856404;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 0.5rem;
+            border-radius: 4px;
+            margin: 0.5rem;
+            font-size: 0.8rem;
+        }
+
+        /* Custom element styles */
+        json-viewer {
+            display: block;
+            font-size: 0.65rem;
+            padding: 1rem;
+            background: rgb(42, 47, 58);
+        }
+
+        /* Target the internal elements of json-viewer */
+        json-viewer::part(base) {
+            background: rgb(42, 47, 58);
+        }
+
+        json-viewer::part(object),
+        json-viewer::part(property),
+        json-viewer::part(primitive) {
+            background: rgb(42, 47, 58);
+        }
+
+        .methodology {
+            background: #fff;
+            border-bottom: 1px solid #e9ecef;
+            padding: 0.5rem 2rem;
+            font-size: 0.75rem;
+            color: #6c757d;
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .methodology-item {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .methodology-label {
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .methodology-value {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            background: #f8f9fa;
+            padding: 0.125rem 0.375rem;
+            border-radius: 3px;
+            border: 1px solid #e9ecef;
+        }
+
+        .timing {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .timing-item {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .timing-ms {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            color: #28a745;
+            font-weight: 500;
+        }
+
+        .search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border: 1px solid #ced4da;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .search-result-item {
+            padding: 0.5rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f8f9fa;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 0.75rem;
+        }
+
+        .search-result-item:hover {
+            background: #f8f9fa;
+        }
+
+        .search-result-item.active {
+            background: #007bff;
+            color: white;
+        }
+
+        .search-result-item .path {
+            color: #6c757d;
+            font-size: 0.7rem;
+        }
+
+        .search-result-item.active .path {
+            color: #b3d7ff;
+        }
+
+        .search-result-item .value {
+            font-weight: 500;
+        }
+
+        .search-highlight {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 0.125rem 0.25rem;
+            border-radius: 2px;
+            margin: 0 0.125rem;
+        }
+
+        .search-highlight.active {
+            background: #007bff;
+            color: white;
+            border-color: #0056b3;
+        }
+
+        .search-info {
+            padding: 0.25rem 0.5rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 0.7rem;
+            color: #6c757d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Ecommerce Scraper</h1>
+            <div class="input-group">
+                <input type="text" id="urlInput" class="url-input" placeholder="Enter product URL (e.g., https://www.sephora.com/product/lip-sleeping-mask-P420652)" value="https://www.sephora.com/product/lip-sleeping-mask-P420652">
+                <select id="ipStrategy" class="strategy-select">
+                    <option value="datacenter">Datacenter IP</option>
+                    <option value="residential">Residential IP (Oculus)</option>
+                </select>
+                <select id="extractionStrategy" class="strategy-select">
+                    <option value="fetch">Fetch</option>
+                    <option value="fetch-headers">Fetch+Headers</option>
+                    <option value="puppeteer">Puppeteer</option>
+                </select>
+                <button id="scrapeBtn" class="scrape-btn">Scrape</button>
+                <span id="loading" class="loading">Scraping...</span>
+            </div>
+        </div>
+
+        <div class="methodology" id="methodology" style="display: none;">
+            <div class="methodology-item">
+                <span class="methodology-label">Scraping:</span>
+                <span class="methodology-value" id="methodology-method">-</span>
+            </div>
+            <div class="methodology-item">
+                <span class="methodology-label">Extraction:</span>
+                <span class="methodology-value" id="methodology-strategy">-</span>
+            </div>
+            <div class="timing">
+                <div class="timing-item">
+                    <span>Process:</span>
+                    <span class="timing-ms" id="timing-process">-</span>
+                </div>
+                <div class="timing-item">
+                    <span>Scrape:</span>
+                    <span class="timing-ms" id="timing-scrape">-</span>
+                </div>
+                <div class="timing-item">
+                    <span>LLM:</span>
+                    <span class="timing-ms" id="timing-llm">-</span>
+                </div>
+                <div class="timing-item">
+                    <span>Total:</span>
+                    <span class="timing-ms" id="timing-total">-</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="tabs">
+                <button class="tab active" data-tab="ai">🤖 AI Output</button>
+                <button class="tab" data-tab="json">📄 JSON Data</button>
+                <button class="tab" data-tab="html">🌐 HTML Data</button>
+                <button class="tab" data-tab="llm">🧠 LLM Input</button>
+            </div>
+
+            <div id="aiOutput" class="tab-content active">
+                <div class="json-viewer">
+                    <div class="json-toolbar">
+                        <input type="text" class="search-input" placeholder="Search JSON (Ctrl+F for native find)..." data-target="ai-content">
+                        <div class="json-controls">
+                            <button class="json-btn" onclick="expandAll('ai-content')">Expand All</button>
+                            <button class="json-btn" onclick="collapseAll('ai-content')">Collapse All</button>
+                        </div>
+                    </div>
+                    <div class="json-content" id="ai-content">
+                        <json-viewer data='{"message": "Enter a URL and click Scrape to see AI-processed product data..."}'></json-viewer>
+                    </div>
+                </div>
+            </div>
+
+            <div id="jsonData" class="tab-content">
+                <div class="json-viewer">
+                    <div class="json-toolbar">
+                        <input type="text" class="search-input" placeholder="Search JSON (Ctrl+F for native find)..." data-target="json-content">
+                        <div class="json-controls">
+                            <button class="json-btn" onclick="expandAll('json-content')">Expand All</button>
+                            <button class="json-btn" onclick="collapseAll('json-content')">Collapse All</button>
+                        </div>
+                    </div>
+                    <div class="json-content" id="json-content">
+                        <json-viewer data='{"message": "Enter a URL and click Scrape to see raw JSON data..."}'></json-viewer>
+                    </div>
+                </div>
+            </div>
+
+            <div id="htmlData" class="tab-content">
+                <div class="json-viewer">
+                    <div class="json-toolbar">
+                        <input type="text" class="search-input" placeholder="Search JSON (Ctrl+F for native find)..." data-target="html-content">
+                        <div class="json-controls">
+                            <button class="json-btn" onclick="expandAll('html-content')">Expand All</button>
+                            <button class="json-btn" onclick="collapseAll('html-content')">Collapse All</button>
+                        </div>
+                    </div>
+                    <div class="json-content" id="html-content">
+                        <json-viewer data='{"message": "Enter a URL and click Scrape to see HTML data..."}'></json-viewer>
+                    </div>
+                </div>
+            </div>
+
+            <div id="llmInput" class="tab-content">
+                <div class="json-viewer">
+                    <div class="json-toolbar">
+                        <input type="text" class="search-input" placeholder="Search JSON (Ctrl+F for native find)..." data-target="llm-content">
+                        <div class="json-controls">
+                            <button class="json-btn" onclick="expandAll('llm-content')">Expand All</button>
+                            <button class="json-btn" onclick="collapseAll('llm-content')">Collapse All</button>
+                        </div>
+                    </div>
+                    <div class="json-content" id="llm-content">
+                        <json-viewer data='{"message": "Enter a URL and click Scrape to see LLM input data..."}'></json-viewer>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Expand all JSON viewers
+        function expandAllViewers() {
+            document.querySelectorAll('json-viewer').forEach(viewer => {
+                if (viewer.expandAll) {
+                    viewer.expandAll();
+                }
+            });
+        }
+
+        // Expand all viewers when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            // Small delay to ensure custom elements are ready
+            setTimeout(expandAllViewers, 100);
+        });
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs and contents
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Add active class to clicked tab
+                tab.classList.add('active');
+                
+                // Show corresponding content
+                const tabId = tab.getAttribute('data-tab');
+                document.getElementById(tabId + (tabId === 'ai' ? 'Output' : tabId === 'json' ? 'Data' : tabId === 'html' ? 'Data' : 'Input')).classList.add('active');
+                
+                // Expand the newly visible viewer
+                setTimeout(expandAllViewers, 50);
+            });
+        });
+
+        // Search functionality - simple placeholder for browser's native find
+        document.querySelectorAll('.search-input').forEach(input => {
+            input.addEventListener('focus', (e) => {
+                // Just focus the input, let browser's Ctrl+F handle the rest
+            });
+        });
+
+        // Function to expand all nodes in a JSON viewer
+        function expandAll(contentId) {
+            const content = document.getElementById(contentId);
+            const jsonViewer = content.querySelector('json-viewer');
+            if (jsonViewer && jsonViewer.expandAll) {
+                jsonViewer.expandAll();
+            }
+        }
+
+        // Function to collapse all nodes in a JSON viewer
+        function collapseAll(contentId) {
+            const content = document.getElementById(contentId);
+            const jsonViewer = content.querySelector('json-viewer');
+            if (jsonViewer && jsonViewer.collapseAll) {
+                jsonViewer.collapseAll();
+            }
+        }
+
+        // Scraping functionality
+        document.getElementById('scrapeBtn').addEventListener('click', async () => {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+
+            const scrapeBtn = document.getElementById('scrapeBtn');
+            const loading = document.getElementById('loading');
+            const methodology = document.getElementById('methodology');
+            
+            scrapeBtn.disabled = true;
+            loading.style.display = 'inline';
+            methodology.style.display = 'none';
+
+            try {
+                console.log('Sending scrape request...');
+                
+                const ipStrategy = document.getElementById('ipStrategy').value;
+                const extractionStrategy = document.getElementById('extractionStrategy').value;
+                
+                const response = await fetch('/scrape', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        url, 
+                        useAI: true, 
+                        ipStrategy,
+                        strategy: extractionStrategy
+                    })
+                });
+
+                const data = await response.json();
+                console.log('Received response:', data);
+
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    displayResults(data);
+                    updateMethodology(data);
+                }
+            } catch (error) {
+                console.error('Scraping error:', error);
+                showError('Failed to scrape: ' + error.message);
+            } finally {
+                methodology.style.display = 'flex';
+                scrapeBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+
+        function updateMethodology(data) {
+            const methodEl = document.getElementById('methodology-method');
+            const strategyEl = document.getElementById('methodology-strategy');
+            
+            // Get timing from backend metadata
+            const timing = data.metadata?.timing || {};
+            
+            console.log('Timing data received:', timing);
+            console.log('Full metadata:', data.metadata);
+            
+            // Determine method from response
+            const method = data.metadata?.method || data.method || 'fingerprint';
+            const strategy = data.metadata?.extraction || data.metadata?.strategy || data.strategy || 'json-parse';
+            
+            methodEl.textContent = method;
+            strategyEl.textContent = strategy;
+            
+            // Update timing with backend data - ensure we're getting numbers
+            const processTime = typeof timing.process === 'number' ? timing.process : parseInt(timing.process) || 0;
+            const scrapeTime = typeof timing.scrape === 'number' ? timing.scrape : parseInt(timing.scrape) || 0;
+            const llmTime = typeof timing.llm === 'number' ? timing.llm : parseInt(timing.llm) || 0;
+            const totalTime = typeof timing.total === 'number' ? timing.total : parseInt(timing.total) || 0;
+            
+            console.log('Parsed timing:', { processTime, scrapeTime, llmTime, totalTime });
+            
+            updateTiming(processTime, scrapeTime, llmTime, totalTime);
+        }
+
+        function updateTiming(process, scrape, llm, total) {
+            document.getElementById('timing-process').textContent = `${Math.round(process)}ms`;
+            document.getElementById('timing-scrape').textContent = `${Math.round(scrape)}ms`;
+            document.getElementById('timing-llm').textContent = `${Math.round(llm)}ms`;
+            document.getElementById('timing-total').textContent = `${Math.round(total)}ms`;
+        }
+
+        function showError(message) {
+            console.error('Showing error:', message);
+            const aiContent = document.getElementById('ai-content');
+            const jsonViewer = aiContent.querySelector('json-viewer');
+            if (jsonViewer) {
+                jsonViewer.setAttribute('data', JSON.stringify({ error: message }));
+                setTimeout(expandAllViewers, 50);
+            } else {
+                aiContent.innerHTML = `<div class="error">${message}</div>`;
+            }
+        }
+
+        function displayResults(data) {
+            console.log('🔍 Frontend: displayResults called with data keys:', Object.keys(data));
+            console.log('🔍 Frontend: Full data object:', data);
+            
+            try {
+                // AI Output
+                const aiData = data.aiOutput || data.aiResult || data;
+                console.log('🔍 Frontend: AI data:', aiData);
+                const aiViewer = document.querySelector('#ai-content json-viewer');
+                if (aiViewer) {
+                    aiViewer.setAttribute('data', JSON.stringify(aiData));
+                }
+
+                // JSON Data
+                const jsonData = data.jsonData || {};
+                console.log('🔍 Frontend: JSON data:', jsonData);
+                const jsonViewer = document.querySelector('#json-content json-viewer');
+                if (jsonViewer) {
+                    jsonViewer.setAttribute('data', JSON.stringify(jsonData));
+                }
+
+                // HTML Data
+                const htmlContent = data.htmlData || {};
+                console.log('🔍 Frontend: HTML data:', htmlContent);
+                const htmlViewer = document.querySelector('#html-content json-viewer');
+                if (htmlViewer) {
+                    htmlViewer.setAttribute('data', JSON.stringify(htmlContent));
+                }
+
+                // LLM Input
+                console.log('🔍 Frontend: Checking for llmInput in data...');
+                console.log('🔍 Frontend: data.llmInput:', data.llmInput);
+                console.log('🔍 Frontend: data.aiOutput?.formatted:', data.aiOutput?.formatted);
+                console.log('🔍 Frontend: data.metadata?.formatted:', data.metadata?.formatted);
+                console.log('🔍 Frontend: data keys:', Object.keys(data));
+                console.log('🔍 Frontend: data.llmInput type:', typeof data.llmInput);
+                console.log('🔍 Frontend: data.llmInput keys:', data.llmInput ? Object.keys(data.llmInput) : 'null/undefined');
+                
+                const llmData = data.llmInput || { message: 'No LLM input data available' };
+                console.log('🔍 Frontend: Final LLM data:', llmData);
+                console.log('🔍 Frontend: Final LLM data type:', typeof llmData);
+                console.log('🔍 Frontend: Final LLM data keys:', Object.keys(llmData));
+                
+                const llmViewer = document.querySelector('#llm-content json-viewer');
+                console.log('🔍 Frontend: Found llmViewer:', !!llmViewer);
+                if (llmViewer) {
+                    console.log('🔍 Frontend: Setting data on llmViewer...');
+                    if (typeof llmData === 'string') {
+                        try {
+                            // Try to parse as JSON first
+                            const parsed = JSON.parse(llmData);
+                            console.log('🔍 Frontend: Parsed string as JSON:', parsed);
+                            llmViewer.setAttribute('data', JSON.stringify(parsed));
+                        } catch {
+                            // If not JSON, display as raw text
+                            console.log('🔍 Frontend: Treating as raw text');
+                            llmViewer.setAttribute('data', JSON.stringify({ rawText: llmData }));
+                        }
+                    } else {
+                        console.log('🔍 Frontend: Setting object data directly');
+                        llmViewer.setAttribute('data', JSON.stringify(llmData));
+                    }
+                    console.log('🔍 Frontend: Data set successfully');
+                } else {
+                    console.error('🔍 Frontend: Could not find llm-content json-viewer');
+                }
+
+                // Expand all viewers after data is loaded
+                setTimeout(expandAllViewers, 100);
+
+                console.log('🔍 Frontend: Results displayed successfully');
+
+            } catch (error) {
+                console.error('🔍 Frontend: Error displaying results:', error);
+                showError('Error displaying results: ' + error.message);
+            }
+        }
+
+        // Enter key to scrape
+        document.getElementById('urlInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('scrapeBtn').click();
+            }
+        });
+    </script>
+</body>
+</html> 

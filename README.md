@@ -29,9 +29,32 @@ npm run dev
 Create a `.env` file in the root directory:
 
 ```env
+# Server Configuration
 PORT=8080
+
+# OpenAI API Key for AI processing
 OPENAI_API_KEY=your_openai_api_key_here
+
+# Oculus Residential Proxy (Optional - for residential IP strategy)
+OCULUS_USERNAME=oc-bd7a95c0106bc01e201d7e4395908e7efac4c51158bace40748f8f4adec91bef
+OCULUS_PASSWORD=jhb7oq8eyins
+OCULUS_COUNTRY=US
+OCULUS_SESSION=123
 ```
+
+### Oculus Residential Proxy Setup
+
+To use residential IPs (recommended for production):
+
+1. Sign up at [Oculus](https://oculus.com)
+2. Get your proxy credentials from the dashboard
+3. Add them to your `.env` file (see example above)
+4. Select "Residential IP (Oculus)" in the UI dropdown
+
+**Note:** 
+- Without Oculus credentials, the residential IP strategy will fall back to datacenter IP
+- The `OCULUS_SESSION` should be unique for each request to avoid conflicts
+- You can change `OCULUS_COUNTRY` to target different geographic locations
 
 ## Usage
 
