@@ -103,6 +103,89 @@ export class FetchStrategy implements ExtractionStrategy {
     const dom = new JSDOM(html);
     const document = dom.window.document;
     
+    // Extract JSON data (same logic as fetch-headers)
+    const jsonData: any = {};
+    
+    // Universal JSON extraction from all script tags
+    const allScripts = document.querySelectorAll('script');
+    let scriptIndex = 0;
+    
+    allScripts.forEach((script) => {
+      const content = script.textContent || '';
+      const type = script.getAttribute('type') || '';
+      const id = script.getAttribute('id') || '';
+      
+      // Skip empty scripts
+      if (!content.trim()) return;
+      
+      // Priority 1: Structured JSON scripts (application/json, application/ld+json, text/json)
+      if (type.includes('json') || type === 'text/json') {
+        try {
+          const data = JSON.parse(content);
+          const key = id ? `structured_${id}` : `structured_${scriptIndex}`;
+          jsonData[key] = data;
+          console.log(`🔍 Found structured JSON: ${key} (script ${scriptIndex})`);
+          scriptIndex++;
+        } catch (e) {
+          console.log(`❌ Failed to parse structured JSON ${scriptIndex}:`, e);
+        }
+      }
+      
+      // Priority 2: Look for JSON patterns in any script tag
+      else if (content.includes('"product"') || content.includes('"sku"') || content.includes('"price"') || 
+               content.includes('"brand"') || content.includes('"title"') || content.includes('"description"') ||
+               content.includes('window.') || content.includes('__INITIAL_STATE__') || content.includes('__PRELOADED_STATE__')) {
+        
+        // Try to extract JSON objects from the content
+        try {
+          // Look for window assignments
+          const windowMatches = content.match(/window\.\w+\s*=\s*({.+?});/gs);
+          if (windowMatches) {
+            windowMatches.forEach((match, matchIndex) => {
+              try {
+                const jsonMatch = match.match(/window\.\w+\s*=\s*({.+?});/s);
+                if (jsonMatch) {
+                  const data = JSON.parse(jsonMatch[1]);
+                  const key = `window_state_${scriptIndex}_${matchIndex}`;
+                  jsonData[key] = data;
+                  console.log(`🔍 Found window state JSON: ${key}`);
+                }
+              } catch (e) {
+                // Skip invalid JSON
+              }
+            });
+          }
+          
+          // Look for any JSON object patterns
+          const jsonMatches = content.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
+          if (jsonMatches) {
+            jsonMatches.forEach((match, matchIndex) => {
+              try {
+                const data = JSON.parse(match);
+                if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+                  // Only add if it looks like product data
+                  if (data.product || data.sku || data.price || data.brand || data.title || 
+                      data.offers || data.variants || data.images || data.description) {
+                    const key = `script_json_${scriptIndex}_${matchIndex}`;
+                    jsonData[key] = data;
+                    console.log(`🔍 Found product JSON: ${key}`);
+                  }
+                }
+              } catch (e) {
+                // Skip invalid JSON
+              }
+            });
+          }
+        } catch (e) {
+          // Skip invalid JSON
+        }
+      }
+    });
+    
+    console.log(`🔍 JSON extraction results: ${Object.keys(jsonData).length} JSON objects found`);
+    console.log(`🔍 JSON keys found:`, Object.keys(jsonData));
+    console.log(`🔍 Will include jsonData in metadata:`, Object.keys(jsonData).length > 0);
+    
     // Basic HTML extraction
     const title = document.querySelector('h1, .product-title, .title')?.textContent?.trim() || '';
     const price = document.querySelector('.price, .product-price, [data-price]')?.textContent?.trim() || '';
@@ -120,7 +203,8 @@ export class FetchStrategy implements ExtractionStrategy {
         strategy: 'fetch',
         ipStrategy: ipStrategy.name,
         scrapeTime: performance.now() - startTime,
-        method: 'fetch'
+        method: 'fetch',
+        jsonData: Object.keys(jsonData).length > 0 ? JSON.stringify(jsonData) : null
       }
     };
   }
@@ -344,6 +428,8 @@ export class FetchHeadersStrategy implements ExtractionStrategy {
       .filter(Boolean) as string[];
     
     console.log(`🔍 JSON extraction results: ${Object.keys(jsonData).length} JSON objects found`);
+    console.log(`🔍 JSON keys found:`, Object.keys(jsonData));
+    console.log(`🔍 Will include jsonData in metadata:`, Object.keys(jsonData).length > 0);
     
     return {
       title,
