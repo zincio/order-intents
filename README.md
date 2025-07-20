@@ -36,8 +36,8 @@ PORT=8080
 OPENAI_API_KEY=your_openai_api_key_here
 
 # Oculus Residential Proxy (Optional - for residential IP strategy)
-OCULUS_USERNAME=oc-bd7a95c0106bc01e201d7e4395908e7efac4c51158bace40748f8f4adec91bef
-OCULUS_PASSWORD=jhb7oq8eyins
+OCULUS_USERNAME=your_oculus_username_here
+OCULUS_PASSWORD=your_oculus_password_here
 OCULUS_COUNTRY=US
 OCULUS_SESSION=123
 ```
