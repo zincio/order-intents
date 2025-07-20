@@ -147,13 +147,20 @@ app.post('/scrape', async (req, res) => {
         timestamp: Math.floor(Date.now() / 1000),
         aiOutput: aiResult.product,
         jsonData: scrapedData.metadata?.jsonData ? JSON.parse(scrapedData.metadata.jsonData) : null,
+        rawHtml: scrapedData.rawHtml,
         htmlData: {
           title: scrapedData.title,
           price: scrapedData.price,
           sku: scrapedData.sku,
           images: scrapedData.images,
+          rawHtml: scrapedData.rawHtml,
           allData: scrapedData.metadata?.allData ? JSON.parse(scrapedData.metadata.allData) : null,
-          textContent: scrapedData.metadata?.textContent ? JSON.parse(scrapedData.metadata.textContent) : null
+          textContent: scrapedData.metadata?.textContent ? JSON.parse(scrapedData.metadata.textContent) : null,
+          fingerprint: scrapedData.metadata?.fingerprint ? JSON.parse(scrapedData.metadata.fingerprint) : null,
+          headers: scrapedData.metadata?.headers ? JSON.parse(scrapedData.metadata.headers) : null,
+          imageCount: scrapedData.metadata?.imageCount,
+          dataAttributesCount: scrapedData.metadata?.dataAttributesCount,
+          jsonDataCount: scrapedData.metadata?.jsonDataCount
         },
         llmInput: aiResult.llmInput,
         metadata: {
@@ -166,7 +173,16 @@ app.post('/scrape', async (req, res) => {
             llm: Math.round(llmTime),
             total: Math.round(performance.now() - startTime)
           },
-          extraction: scrapedData.metadata?.strategy || 'json-parse'
+          extraction: scrapedData.metadata?.strategy || 'json-parse',
+          // Include all extracted data counts
+          extractedData: {
+            htmlLength: scrapedData.rawHtml.length,
+            jsonObjects: scrapedData.metadata?.jsonData ? Object.keys(JSON.parse(scrapedData.metadata.jsonData)).length : 0,
+            imagesFound: scrapedData.images.length,
+            titleFound: !!scrapedData.title,
+            priceFound: !!scrapedData.price,
+            skuFound: !!scrapedData.sku
+          }
         }
       };
       

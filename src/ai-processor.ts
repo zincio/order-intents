@@ -103,13 +103,51 @@ export class AIProcessor {
     try {
       const jsonData = JSON.parse(metadata.jsonData);
       
-      // Just send the entire JSON data without processing
-      console.log(`📊 Sending entire JSON data to LLM (${JSON.stringify(jsonData).length} characters)`);
+      // Universal JSON prioritization
+      let prioritizedData: any = {};
+      
+      // Priority 1: Structured JSON (application/json, application/ld+json, text/json)
+      const structuredKeys = Object.keys(jsonData).filter(key => key.startsWith('structured_'));
+      if (structuredKeys.length > 0) {
+        structuredKeys.forEach(key => {
+          prioritizedData[key] = jsonData[key];
+        });
+        console.log(`🔍 Using ${structuredKeys.length} structured JSON objects as primary source`);
+      }
+      
+      // Priority 2: Window state data (React/Vue/SPA state)
+      const windowKeys = Object.keys(jsonData).filter(key => key.startsWith('window_state_'));
+      if (windowKeys.length > 0) {
+        windowKeys.forEach(key => {
+          prioritizedData[key] = jsonData[key];
+        });
+        console.log(`🔍 Using ${windowKeys.length} window state objects as secondary source`);
+      }
+      
+      // Priority 3: Product-specific JSON patterns
+      const productKeys = Object.keys(jsonData).filter(key => key.startsWith('script_json_') || key.startsWith('product_json_'));
+      if (productKeys.length > 0) {
+        productKeys.forEach(key => {
+          prioritizedData[key] = jsonData[key];
+        });
+        console.log(`🔍 Using ${productKeys.length} product JSON objects as tertiary source`);
+      }
+      
+      // Fallback: use all available JSON data
+      if (Object.keys(prioritizedData).length === 0) {
+        prioritizedData = jsonData;
+        console.log('🔍 Using all available JSON data as fallback');
+      }
+      
+      const jsonString = JSON.stringify(prioritizedData, null, 2);
+      console.log(`📊 Sending prioritized JSON data to LLM (${jsonString.length} characters)`);
+      console.log(`📊 JSON keys being sent:`, Object.keys(prioritizedData));
+      console.log(`📊 JSON preview:`, jsonString.substring(0, 500) + '...');
       
       return {
-        sections: [{ path: 'full_json', data: jsonData, score: 100, relevance: ['full_data'] }],
-        formatted: `FULL JSON DATA:\n${JSON.stringify(jsonData, null, 2)}`,
-        tokenEstimate: Math.ceil(JSON.stringify(jsonData).length / 4)
+        sections: [{ path: 'prioritized_json', data: prioritizedData, score: 100, relevance: ['structured_data'] }],
+        formatted: `PRIORITIZED JSON DATA:\n${jsonString}`,
+        tokenEstimate: Math.ceil(jsonString.length / 4)
       };
     } catch (error) {
       console.log('Error parsing JSON data:', error);
