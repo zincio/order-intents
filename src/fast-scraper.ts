@@ -76,7 +76,7 @@ export async function scrapeWithFastStrategy(url: string): Promise<ScrapedData> 
     throw new Error('Fast strategies failed');
 
   } catch (error) {
-    console.log('❌ Fast scraping failed:', error.message);
+    console.log('❌ Fast scraping failed:', error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
@@ -186,7 +186,7 @@ async function tryFetchWithHeaders(url: string): Promise<ScrapedData | null> {
     }
 
   } catch (error) {
-    console.log('Fetch with headers failed:', error.message);
+    console.log('Fetch with headers failed:', error instanceof Error ? error.message : String(error));
   }
   
   return null;
@@ -230,7 +230,7 @@ async function tryJsonLdExtraction(url: string): Promise<ScrapedData | null> {
     }
 
   } catch (error) {
-    console.log('JSON-LD extraction failed:', error.message);
+    console.log('JSON-LD extraction failed:', error instanceof Error ? error.message : String(error));
   }
   
   return null;
@@ -278,7 +278,7 @@ async function tryMobileAPI(url: string): Promise<ScrapedData | null> {
     }
 
   } catch (error) {
-    console.log('Mobile API failed:', error.message);
+    console.log('Mobile API failed:', error instanceof Error ? error.message : String(error));
   }
   
   return null;

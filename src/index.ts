@@ -232,7 +232,6 @@ app.get('/scrape/:url(*)', async (req, res) => {
       res.json({
         ...productData,
         metadata: {
-          ...productData.metadata,
           timing: {
             scrape: scrapeTime,
             llm: llmTime,

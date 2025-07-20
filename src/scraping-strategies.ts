@@ -34,9 +34,8 @@ export class DatacenterIP implements IPStrategy {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
-      },
-      timeout: 10000
-    };
+      }
+    } as RequestInit;
   }
 }
 
@@ -72,10 +71,8 @@ export class ResidentialIP implements IPStrategy {
         'DNT': '1',
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
-      },
-      agent: proxyAgent,
-      timeout: 30000 // Longer timeout for residential proxies
-    };
+      }
+    } as RequestInit;
   }
 }
 
@@ -89,7 +86,7 @@ export class FetchStrategy implements ExtractionStrategy {
     console.log(`🔍 Fetch strategy: ${url} with ${ipStrategy.name} IP`);
     
     const options = await ipStrategy.getFetchOptions(url);
-    const response = await fetch(url, options);
+    const response = await fetch(url, options as any);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -150,7 +147,7 @@ export class FetchHeadersStrategy implements ExtractionStrategy {
       }
     };
     
-    const response = await fetch(url, enhancedOptions);
+    const response = await fetch(url, enhancedOptions as any);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
