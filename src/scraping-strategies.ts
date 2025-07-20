@@ -85,10 +85,17 @@ export class FetchStrategy implements ExtractionStrategy {
     const startTime = performance.now();
     console.log(`🔍 Fetch strategy: ${url} with ${ipStrategy.name} IP`);
     
+    // Add a small delay to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 500 + 200));
+    
     const options = await ipStrategy.getFetchOptions(url);
     const response = await fetch(url, options as any);
     
     if (!response.ok) {
+      if (response.status === 403) {
+        console.warn('⚠️ 403 Forbidden - site may be blocking requests');
+        throw new Error(`HTTP 403: Access forbidden - site may be blocking automated requests`);
+      }
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     
@@ -127,13 +134,23 @@ export class FetchHeadersStrategy implements ExtractionStrategy {
     const startTime = performance.now();
     console.log(`🔍 Fetch+Headers strategy: ${url} with ${ipStrategy.name} IP`);
     
+    // Rotate User-Agents to avoid detection
+    const userAgents = [
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15'
+    ];
+    
+    const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+    
     const baseOptions = await ipStrategy.getFetchOptions(url);
     const enhancedOptions: RequestInit = {
       ...baseOptions,
       headers: {
         ...baseOptions.headers,
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'User-Agent': randomUserAgent,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate, br',
         'DNT': '1',
@@ -143,14 +160,53 @@ export class FetchHeadersStrategy implements ExtractionStrategy {
         'Sec-Fetch-Mode': 'navigate',
         'Sec-Fetch-Site': 'none',
         'Sec-Fetch-User': '?1',
-        'Cache-Control': 'max-age=0',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"macOS"',
+        'Sec-GPC': '1'
       }
     };
     
-    const response = await fetch(url, enhancedOptions as any);
+    // Add a small delay to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
+    
+    let response;
+    try {
+      response = await fetch(url, enhancedOptions as any);
+    } catch (error) {
+      console.warn('⚠️ Fetch failed, trying with simpler headers...');
+      // Try with simpler headers if the enhanced ones fail
+      const simpleOptions = {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+        }
+      };
+      response = await fetch(url, simpleOptions as any);
+    }
     
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      if (response.status === 403) {
+        console.warn('⚠️ 403 Forbidden - trying mobile user agent...');
+        // Try with mobile user agent as fallback
+        const mobileOptions = {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+          }
+        };
+        response = await fetch(url, mobileOptions as any);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText} - all fallback attempts failed`);
+        }
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
     }
     
     const html = await response.text();
@@ -214,8 +270,9 @@ export class FetchHeadersStrategy implements ExtractionStrategy {
         }
       }
       
-      // Look for any JSON-like content in script tags
-      if (content.includes('"product"') || content.includes('"sku"') || content.includes('"price"')) {
+      // Look for any JSON-like content in script tags - more aggressive
+      if (content.includes('"product"') || content.includes('"sku"') || content.includes('"price"') || 
+          content.includes('"brand"') || content.includes('"title"') || content.includes('"description"')) {
         try {
           // Try to extract JSON objects from the content
           const jsonMatches = content.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
@@ -240,12 +297,55 @@ export class FetchHeadersStrategy implements ExtractionStrategy {
       }
     });
     
+    // Additional JSON extraction from entire HTML content
+    if (Object.keys(jsonData).length === 0) {
+      console.log('🔍 No JSON found in script tags, searching entire HTML...');
+      
+      // Look for JSON patterns in the entire HTML
+      const jsonPatterns = [
+        /"product":\s*\{[^}]*\}/g,
+        /"sku":\s*"[^"]*"/g,
+        /"price":\s*"[^"]*"/g,
+        /"brand":\s*"[^"]*"/g,
+        /"title":\s*"[^"]*"/g,
+        /"description":\s*"[^"]*"/g
+      ];
+      
+      jsonPatterns.forEach((pattern, index) => {
+        const matches = html.match(pattern);
+        if (matches && matches.length > 0) {
+          jsonData[`html_pattern_${index}`] = matches.slice(0, 10); // Limit to first 10 matches
+        }
+      });
+      
+      // Look for Sephora-specific data attributes
+      const dataElements = document.querySelectorAll('[data-*]');
+      const dataAttributes: any = {};
+      dataElements.forEach((el, index) => {
+        if (index < 50) { // Limit to first 50 elements
+          const attrs = el.attributes;
+          for (let i = 0; i < attrs.length; i++) {
+            const attr = attrs[i];
+            if (attr.name.startsWith('data-') && attr.value) {
+              dataAttributes[`${el.tagName}_${attr.name}`] = attr.value;
+            }
+          }
+        }
+      });
+      
+      if (Object.keys(dataAttributes).length > 0) {
+        jsonData['data_attributes'] = dataAttributes;
+      }
+    }
+    
     // Basic HTML extraction
     const title = document.querySelector('h1, .product-title, .title')?.textContent?.trim() || '';
     const price = document.querySelector('.price, .product-price, [data-price]')?.textContent?.trim() || '';
     const images = Array.from(document.querySelectorAll('img[src*="product"], img[data-src*="product"]'))
       .map(img => img.getAttribute('src') || img.getAttribute('data-src'))
       .filter(Boolean) as string[];
+    
+    console.log(`🔍 JSON extraction results: ${Object.keys(jsonData).length} JSON objects found`);
     
     return {
       title,
@@ -272,10 +372,23 @@ export class PuppeteerStrategy implements ExtractionStrategy {
     const startTime = performance.now();
     console.log(`🔍 Puppeteer strategy: ${url} with ${ipStrategy.name} IP`);
     
+    // Validate that we're not trying to use residential proxy with Puppeteer
+    if (ipStrategy.name === 'residential') {
+      console.warn('⚠️ Residential proxy not supported with Puppeteer, falling back to datacenter IP');
+      // Fall back to datacenter IP for Puppeteer
+      const datacenterIP = new DatacenterIP();
+      return this.extractWithPuppeteer(url, datacenterIP);
+    }
+    
+    return this.extractWithPuppeteer(url, ipStrategy);
+  }
+  
+  private async extractWithPuppeteer(url: string, ipStrategy: IPStrategy): Promise<ScrapedData> {
+    const startTime = performance.now();
     // Import Puppeteer dynamically to avoid startup overhead
     const { scrapeWithFingerprinting } = await import('./fingerprint-scraper.js');
     
-    // TODO: Configure Puppeteer to use residential proxy when ipStrategy is residential
+    // Pass IP strategy info to the fingerprint scraper
     const result = await scrapeWithFingerprinting(url);
     
     return {

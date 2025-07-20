@@ -105,10 +105,19 @@ app.post('/scrape', async (req, res) => {
     const ipStrategy = getIPStrategy(req.body.ipStrategy || 'datacenter');
     const extractionStrategy = getExtractionStrategy(strategy);
     
-    console.log(`🔍 Using IP strategy: ${ipStrategy.name} (${ipStrategy.description})`);
-    console.log(`🔍 Using extraction strategy: ${extractionStrategy.name} (${extractionStrategy.description})`);
-    
-    const scrapedData = await extractionStrategy.extract(url, ipStrategy);
+    // Validate strategy compatibility
+    let scrapedData;
+    if (ipStrategy.name === 'residential' && extractionStrategy.name === 'puppeteer') {
+      console.warn('⚠️ Residential proxy not compatible with Puppeteer, using datacenter IP instead');
+      const datacenterIP = getIPStrategy('datacenter');
+      console.log(`🔍 Using IP strategy: ${datacenterIP.name} (${datacenterIP.description}) - fallback from residential`);
+      console.log(`🔍 Using extraction strategy: ${extractionStrategy.name} (${extractionStrategy.description})`);
+      scrapedData = await extractionStrategy.extract(url, datacenterIP);
+    } else {
+      console.log(`🔍 Using IP strategy: ${ipStrategy.name} (${ipStrategy.description})`);
+      console.log(`🔍 Using extraction strategy: ${extractionStrategy.name} (${extractionStrategy.description})`);
+      scrapedData = await extractionStrategy.extract(url, ipStrategy);
+    }
     scrapeTime = parseFloat(scrapedData.metadata?.scrapeTime) || 0;
     
     console.log('Backend timing calculation:', {
