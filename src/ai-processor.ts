@@ -59,6 +59,8 @@ export class AIProcessor {
         prompt: prompt,
         jsonData: relevantJsonData,
         tokenEstimate: relevantJsonData?.tokenEstimate || 0,
+        wasTruncated: relevantJsonData?.wasTruncated || false,
+        originalTokenEstimate: relevantJsonData?.originalTokenEstimate || 0,
         model: 'gpt-4o-mini',
         temperature: 0.1
       };
@@ -103,51 +105,64 @@ export class AIProcessor {
     try {
       const jsonData = JSON.parse(metadata.jsonData);
       
-      // Universal JSON prioritization
-      let prioritizedData: any = {};
+      console.log(`🔍 Raw JSON data keys:`, Object.keys(jsonData));
+      console.log(`🔍 Raw JSON data size: ${JSON.stringify(jsonData).length} characters`);
       
-      // Priority 1: Structured JSON (application/json, application/ld+json, text/json)
-      const structuredKeys = Object.keys(jsonData).filter(key => key.startsWith('structured_'));
-      if (structuredKeys.length > 0) {
-        structuredKeys.forEach(key => {
-          prioritizedData[key] = jsonData[key];
-        });
-        console.log(`🔍 Using ${structuredKeys.length} structured JSON objects as primary source`);
+      // Use the JSON processor to intelligently extract and score relevant sections
+      const relevantSections = this.jsonProcessor.extractRelevantJsonData(jsonData, 3);
+      
+      console.log(`🔍 JSON processor found ${relevantSections.length} relevant sections`);
+      relevantSections.forEach((section, index) => {
+        console.log(`🔍 Section ${index + 1}: ${section.path} (score: ${section.score}, relevance: ${section.relevance.join(', ')})`);
+      });
+      
+      // Format the data for AI consumption
+      const formatted = this.jsonProcessor.formatForAI(relevantSections);
+      const tokenEstimate = this.jsonProcessor.estimateTokens(relevantSections);
+      
+      console.log(`📊 Token estimate: ${tokenEstimate} tokens`);
+      console.log(`📊 Formatted data length: ${formatted.length} characters`);
+      console.log(`📊 Formatted data preview:`, formatted.substring(0, 500) + '...');
+      
+      // Check if we need to truncate due to token limits
+      const maxTokens = 8000; // Conservative limit for GPT-4o-mini
+      if (tokenEstimate > maxTokens) {
+        console.warn(`⚠️ Token estimate (${tokenEstimate}) exceeds limit (${maxTokens}), truncating...`);
+        
+        // Take only the top sections that fit within token limit
+        let truncatedSections: any[] = [];
+        let currentTokens = 0;
+        
+        for (const section of relevantSections) {
+          const sectionTokens = Math.ceil(JSON.stringify(section.data).length / 4);
+          if (currentTokens + sectionTokens <= maxTokens) {
+            truncatedSections.push(section);
+            currentTokens += sectionTokens;
+          } else {
+            console.log(`🔍 Stopping at section ${section.path} to stay within token limit`);
+            break;
+          }
+        }
+        
+        const truncatedFormatted = this.jsonProcessor.formatForAI(truncatedSections);
+        const truncatedTokenEstimate = this.jsonProcessor.estimateTokens(truncatedSections);
+        
+        console.log(`📊 After truncation: ${truncatedTokenEstimate} tokens, ${truncatedFormatted.length} characters`);
+        
+        return {
+          sections: truncatedSections,
+          formatted: truncatedFormatted,
+          tokenEstimate: truncatedTokenEstimate,
+          wasTruncated: true,
+          originalTokenEstimate: tokenEstimate
+        };
       }
-      
-      // Priority 2: Window state data (React/Vue/SPA state)
-      const windowKeys = Object.keys(jsonData).filter(key => key.startsWith('window_state_'));
-      if (windowKeys.length > 0) {
-        windowKeys.forEach(key => {
-          prioritizedData[key] = jsonData[key];
-        });
-        console.log(`🔍 Using ${windowKeys.length} window state objects as secondary source`);
-      }
-      
-      // Priority 3: Product-specific JSON patterns
-      const productKeys = Object.keys(jsonData).filter(key => key.startsWith('script_json_') || key.startsWith('product_json_'));
-      if (productKeys.length > 0) {
-        productKeys.forEach(key => {
-          prioritizedData[key] = jsonData[key];
-        });
-        console.log(`🔍 Using ${productKeys.length} product JSON objects as tertiary source`);
-      }
-      
-      // Fallback: use all available JSON data
-      if (Object.keys(prioritizedData).length === 0) {
-        prioritizedData = jsonData;
-        console.log('🔍 Using all available JSON data as fallback');
-      }
-      
-      const jsonString = JSON.stringify(prioritizedData, null, 2);
-      console.log(`📊 Sending prioritized JSON data to LLM (${jsonString.length} characters)`);
-      console.log(`📊 JSON keys being sent:`, Object.keys(prioritizedData));
-      console.log(`📊 JSON preview:`, jsonString.substring(0, 500) + '...');
       
       return {
-        sections: [{ path: 'prioritized_json', data: prioritizedData, score: 100, relevance: ['structured_data'] }],
-        formatted: `PRIORITIZED JSON DATA:\n${jsonString}`,
-        tokenEstimate: Math.ceil(jsonString.length / 4)
+        sections: relevantSections,
+        formatted: formatted,
+        tokenEstimate: tokenEstimate,
+        wasTruncated: false
       };
     } catch (error) {
       console.log('Error parsing JSON data:', error);
@@ -167,9 +182,10 @@ URL: ${url}
     // Prioritize JSON data if available
     if (relevantJsonData?.formatted) {
       const tokenEstimate = relevantJsonData.tokenEstimate || 0;
-      console.log(`📊 Token Budget: JSON data ~${tokenEstimate} tokens`);
+      const wasTruncated = relevantJsonData.wasTruncated || false;
+      console.log(`📊 Token Budget: JSON data ~${tokenEstimate} tokens${wasTruncated ? ' (truncated)' : ''}`);
       
-      prompt += `IMPORTANT: Use the following structured JSON data as your PRIMARY source. This contains the most accurate product information:
+      prompt += `IMPORTANT: Use the following intelligently processed JSON data as your PRIMARY source. This data has been scored and prioritized for relevance:
 
 ${relevantJsonData.formatted}
 
@@ -178,10 +194,11 @@ ${html.substring(0, 3000)}
 
 INSTRUCTIONS:
 1. PRIORITIZE the JSON data above - it contains the most accurate and complete product information
-2. Only use HTML data to fill in gaps that are missing from the JSON
-3. Use exact values from the JSON data (product IDs, SKUs, image URLs, etc.)
-4. Do not make up or guess any information - only use data that is actually present
-5. The JSON data is sorted by relevance score - higher scores indicate more important data
+2. The JSON data is sorted by relevance score - higher scores indicate more important data
+3. Only use HTML data to fill in gaps that are missing from the JSON
+4. Use exact values from the JSON data (product IDs, SKUs, image URLs, etc.)
+5. Do not make up or guess any information - only use data that is actually present
+${wasTruncated ? `6. NOTE: This data was truncated due to size limits. Focus on the highest-scoring sections first.` : ''}
 
 SPECIAL INSTRUCTIONS FOR VARIANTS AND SKUs:
 - Look for any arrays or objects that contain product variations, offers, variants, colors, sizes, or similar structures
