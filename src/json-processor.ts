@@ -134,37 +134,51 @@ export class JsonProcessor {
   private calculateRelevanceScore(path: string, data: any): number {
     const pathLower = path.toLowerCase();
     const dataString = JSON.stringify(data).toLowerCase();
-    
     let score = 0;
-    
+
     // Check high priority keywords
     this.relevanceDictionary.high.forEach(keyword => {
       if (pathLower.includes(keyword) || dataString.includes(keyword)) {
         score += 10;
       }
     });
-    
     // Check medium priority keywords
     this.relevanceDictionary.medium.forEach(keyword => {
       if (pathLower.includes(keyword) || dataString.includes(keyword)) {
         score += 7;
       }
     });
-    
     // Check low priority keywords
     this.relevanceDictionary.low.forEach(keyword => {
       if (pathLower.includes(keyword) || dataString.includes(keyword)) {
         score += 3;
       }
     });
-    
     // Check negative keywords
     this.relevanceDictionary.negative.forEach(keyword => {
       if (pathLower.includes(keyword) || dataString.includes(keyword)) {
         score -= 5;
       }
     });
-    
+
+    // --- Size penalty ---
+    const sizeBytes = Buffer.byteLength(JSON.stringify(data), 'utf8');
+    const sizeKB = sizeBytes / 1024;
+    if (sizeKB > 50) {
+      // Subtract 10 points for every 100KB over 50KB
+      score -= Math.floor((sizeKB - 50) / 100) * 10;
+      // Additional penalty for anything over 500KB
+      if (sizeKB > 500) score -= 50;
+    }
+
+    // --- Density bonus ---
+    // If section contains all core product fields and is under 50KB, add a bonus
+    const coreFields = ['product', 'sku', 'price', 'brand', 'name', 'image'];
+    const hasAllCore = coreFields.every(f => dataString.includes(f));
+    if (hasAllCore && sizeKB < 50) {
+      score += 30;
+    }
+
     return score;
   }
 
@@ -276,43 +290,61 @@ export class JsonProcessor {
   }
 
   /**
-   * Intelligently truncate large objects while preserving important fields
+   * Recursively prune large arrays in objects based on key heuristics
    */
-  private intelligentlyTruncate(data: any, maxDepth: number = 2): any {
-    if (typeof data !== 'object' || data === null) {
-      return data;
-    }
-
+  private pruneLargeArrays(data: any, key?: string, maxDepth: number = 4): any {
+    if (typeof data !== 'object' || data === null) return data;
     if (Array.isArray(data)) {
-      // Don't truncate arrays - send all data
-      return data.map(item => this.intelligentlyTruncate(item, maxDepth - 1));
+      // Determine max items based on key
+      let maxItems = 20;
+      if (key) {
+        const keyLower = key.toLowerCase();
+        if (['reviews', 'comments', 'ratings', 'questions', 'feedback'].some(k => keyLower.includes(k))) maxItems = 10;
+        else if (['offers', 'variants', 'products', 'skus', 'items', 'options'].some(k => keyLower.includes(k))) maxItems = 50;
+        else if (['images', 'photos', 'gallery', 'media'].some(k => keyLower.includes(k))) maxItems = 20;
+      }
+      // Prune array recursively
+      return data.slice(0, maxItems).map(item => this.pruneLargeArrays(item, undefined, maxDepth - 1));
     }
+    if (maxDepth <= 0) return data;
+    const pruned: any = {};
+    for (const [k, v] of Object.entries(data)) {
+      pruned[k] = this.pruneLargeArrays(v, k, maxDepth - 1);
+    }
+    return pruned;
+  }
 
+  /**
+   * Intelligently truncate large objects while preserving important fields and pruning arrays
+   */
+  public intelligentlyTruncate(data: any, maxDepth: number = 2): any {
+    // Use pruneLargeArrays to trim arrays before further truncation
+    const pruned = this.pruneLargeArrays(data, undefined, maxDepth + 2); // allow deeper pruning for arrays
+    if (typeof pruned !== 'object' || pruned === null) {
+      return pruned;
+    }
+    if (Array.isArray(pruned)) {
+      return pruned.map(item => this.intelligentlyTruncate(item, maxDepth - 1));
+    }
     if (maxDepth <= 0) {
-      // At max depth, only keep the most important fields
       const importantFields = ['id', 'name', 'title', 'price', 'sku', 'brand', 'product', 'variant'];
       const truncated: any = {};
-      
-      Object.entries(data).forEach(([key, value]) => {
+      Object.entries(pruned).forEach(([key, value]) => {
         const keyLower = key.toLowerCase();
         if (importantFields.some(field => keyLower.includes(field))) {
           truncated[key] = typeof value === 'object' ? '[Object]' : value;
         }
       });
-      
       if (Object.keys(truncated).length === 0) {
         return '[Complex Object]';
       }
-      
       return truncated;
     }
-
     // Recursively truncate nested objects
     const truncated: any = {};
-    Object.entries(data).forEach(([key, value]) => {
+    Object.entries(pruned).forEach(([key, value]) => {
       truncated[key] = this.intelligentlyTruncate(value, maxDepth - 1);
     });
-    
     return truncated;
   }
 

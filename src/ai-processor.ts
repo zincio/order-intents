@@ -147,14 +147,23 @@ export class AIProcessor {
         let currentTokens = 0;
         
         for (const section of relevantSections) {
-          const sectionTokens = Math.ceil(JSON.stringify(section.data).length / 4);
-          if (currentTokens + sectionTokens <= maxTokens) {
-            truncatedSections.push(section);
-            currentTokens += sectionTokens;
-          } else {
-            console.log(`🔍 Stopping at section ${section.path} to stay within token limit`);
-            break;
+          let sectionData = section.data;
+          let sectionTokens = Math.ceil(JSON.stringify(sectionData).length / 4);
+          if (currentTokens + sectionTokens > maxTokens) {
+            // Try pruning arrays in this section to fit
+            const pruned = this.jsonProcessor.intelligentlyTruncate(sectionData, 2);
+            const prunedTokens = Math.ceil(JSON.stringify(pruned).length / 4);
+            if (prunedTokens + currentTokens <= maxTokens) {
+              truncatedSections.push({ ...section, data: pruned });
+              currentTokens += prunedTokens;
+              console.log(`🔍 Included pruned section ${section.path} (${prunedTokens} tokens)`);
+            } else {
+              console.log(`🔍 Skipping section ${section.path} (even pruned too large: ${prunedTokens} tokens)`);
+            }
+            continue;
           }
+          truncatedSections.push(section);
+          currentTokens += sectionTokens;
         }
         
         const truncatedFormatted = this.jsonProcessor.formatForAI(truncatedSections);
