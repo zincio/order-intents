@@ -43,15 +43,24 @@ export class JsonProcessor {
   extractRelevantJsonData(jsonData: any, maxDepth: number = 3): JsonSection[] {
     const sections: JsonSection[] = [];
     
+    console.log(`🔍 JSON Processor: Processing ${Object.keys(jsonData).length} top-level keys`);
+    
     // Process each top-level key in the JSON
     Object.entries(jsonData).forEach(([key, value]) => {
+      console.log(`🔍 JSON Processor: Processing key "${key}"`);
       this.extractSectionsRecursive(key, value, sections, maxDepth, 1);
     });
     
+    console.log(`🔍 JSON Processor: Found ${sections.length} sections before filtering`);
+    
     // Sort by score (highest first) and return top sections
-    return sections
+    const sortedSections = sections
       .sort((a, b) => b.score - a.score)
       .slice(0, 10); // Limit to top 10 most relevant sections
+      
+    console.log(`🔍 JSON Processor: Returning ${sortedSections.length} sections after filtering`);
+    
+    return sortedSections;
   }
 
   /**
@@ -72,6 +81,8 @@ export class JsonProcessor {
     const score = this.calculateRelevanceScore(path, data);
     const relevance = this.getRelevanceKeywords(path, data);
 
+    console.log(`🔍 JSON Processor: Path "${path}" scored ${score} (relevance: ${relevance.join(', ')})`);
+
     // Only include sections with positive scores
     if (score > 0) {
       // Extract key name from path for sanitizeData
@@ -82,6 +93,9 @@ export class JsonProcessor {
         score,
         relevance
       });
+      console.log(`🔍 JSON Processor: Added section "${path}" with score ${score}`);
+    } else {
+      console.log(`🔍 JSON Processor: Skipped section "${path}" with score ${score} (too low)`);
     }
 
     // Recursively process nested objects (but not arrays)

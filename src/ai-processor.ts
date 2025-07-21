@@ -116,6 +116,18 @@ export class AIProcessor {
         console.log(`🔍 Section ${index + 1}: ${section.path} (score: ${section.score}, relevance: ${section.relevance.join(', ')})`);
       });
       
+      // If no sections found, fall back to using all JSON data
+      if (relevantSections.length === 0) {
+        console.warn('⚠️ No relevant sections found by JSON processor, falling back to all JSON data');
+        const fallbackSections = [{
+          path: 'fallback_all_json',
+          data: jsonData,
+          score: 1,
+          relevance: ['fallback']
+        }];
+        relevantSections.push(...fallbackSections);
+      }
+      
       // Format the data for AI consumption
       const formatted = this.jsonProcessor.formatForAI(relevantSections);
       const tokenEstimate = this.jsonProcessor.estimateTokens(relevantSections);
