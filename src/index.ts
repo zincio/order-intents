@@ -173,7 +173,7 @@ app.post('/scrape', async (req, res) => {
             llm: Math.round(llmTime),
             total: Math.round(performance.now() - startTime)
           },
-          extraction: scrapedData.metadata?.strategy || 'json-parse',
+          extraction: scrapedData.metadata?.jsonData ? 'JSON' : 'HTML',
           // Include all extracted data counts
           extractedData: {
             htmlLength: scrapedData.rawHtml.length,
@@ -201,7 +201,7 @@ app.post('/scrape', async (req, res) => {
         metadata: {
           method: strategy,
           strategy: scrapedData.metadata?.strategy || 'json-parse',
-          extraction: scrapedData.metadata?.strategy || 'json-parse',
+          extraction: scrapedData.metadata?.jsonData ? 'JSON' : 'HTML',
           timing: {
             process: Math.round(processTime),
             scrape: Math.round(scrapeTime),
