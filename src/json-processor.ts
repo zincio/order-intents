@@ -253,19 +253,25 @@ export class JsonProcessor {
    * Format extracted data for AI consumption
    */
   formatForAI(sections: JsonSection[]): string {
+    console.log(`🔍 formatForAI called with ${sections.length} sections`);
+    console.log(`🔍 Sections array:`, sections);
+    
     if (sections.length === 0) {
+      console.log(`🔍 No sections found, returning 'No relevant JSON data found.'`);
       return 'No relevant JSON data found.';
     }
 
     let formatted = 'RELEVANT JSON DATA (sorted by relevance):\n\n';
     
     sections.forEach((section, index) => {
+      console.log(`🔍 Formatting section ${index + 1}: ${section.path}`);
       formatted += `=== SECTION ${index + 1} (Score: ${section.score}) ===\n`;
       formatted += `Path: ${section.path}\n`;
       formatted += `Relevance: ${section.relevance.join(', ')}\n`;
       formatted += `Data:\n${JSON.stringify(section.data, null, 2)}\n\n`;
     });
     
+    console.log(`🔍 Formatted result length: ${formatted.length} characters`);
     return formatted;
   }
 

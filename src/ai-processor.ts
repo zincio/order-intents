@@ -112,6 +112,7 @@ export class AIProcessor {
       const relevantSections = this.jsonProcessor.extractRelevantJsonData(jsonData, 3);
       
       console.log(`🔍 JSON processor found ${relevantSections.length} relevant sections`);
+      console.log(`🔍 Relevant sections array:`, relevantSections);
       relevantSections.forEach((section, index) => {
         console.log(`🔍 Section ${index + 1}: ${section.path} (score: ${section.score}, relevance: ${section.relevance.join(', ')})`);
       });
